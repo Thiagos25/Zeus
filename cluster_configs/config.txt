@@ -1,7 +1,47 @@
 
 
 
-ssh -i "/Users/tsantiago/Downloads/hdf_demo_thiago.pem" centos@ec2-13-57-48-160.us-west-1.compute.amazonaws.com
+ssh -i "/Users/tsantiago/Downloads/hdf_demo_thiago.pem" centos@ec2-13-57-59-217.us-west-1.compute.amazonaws.com
 
 scp -i "/Users/tsantiago/Downloads/hdf_demo_thiago.pem" nifi-druid.nar centos@ec2-13-57-236-246.us-west-1.compute.amazonaws.com:/tmp
+
+
+
+set hive.execution.engine=mr;
+--set mapred.job.queue.name=llap;
+select cidade.nome, estado.nome from cidade
+join estado on cidade.id_estado = estado.id;
+
+
+timestamp,created_time,user_id,device,corrente,potencia
+
+
+%sql
+select Dispositivo.descricao, Energia.corrente, Energia.potencia from Zeus.Energia
+join Zeus.Dispositivo on Dispositivo.id = Energia.dispositivo_id
+order by Energia.created_time limit 100
+
+
+%sql
+select Usuario.nome Energia.corrente, Energia.potencia from Zeus.Energia limit 100
+joing Zeus.Usuario Energia.user_id = Usuario.id
+
+
+%sql
+select Usuario.nome_usuario, Dispositivo.descricao, Energia.corrente, Energia.potencia from Zeus.Energia
+left outer join Zeus.Usuario on Energia.user_id = Usuario.id
+left outer join Zeus.Dispositivo on Usuario.id = Dispositivo.id_usuario
+order by Energia.created_time limit 100
+
+
+
+
+BB
+BRASBRRJSBO
+
+BR7600000000017000000271993C1
+
+
+{"timestamp":${now():toNumber()},"created_time":"${now():format("yyyy/MM/dd HH:mm:ss.SSS", "GMT")}","user_id":"${user_id}","device":"${device}","corrente":"${corrente}","potencia":"${potencia}"}
+
 

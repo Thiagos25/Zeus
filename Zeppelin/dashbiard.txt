@@ -1,0 +1,59 @@
+%sql
+-- teste // 
+select Usuario.nome_usuario, Dispositivo.descricao, Energia.corrente, Energia.potencia from Zeus.Energia
+left outer join Zeus.Usuario on Energia.user_id = Usuario.id
+left outer join Zeus.Dispositivo on Energia.dispositivo_id = Dispositivo.id
+-- order by Energia.created_time desc limit 10000
+
+
+
+
+
+%sql
+-- teste // 
+select Usuario.nome_usuario, Dispositivo.descricao, count(Energia.potencia) from Zeus.Energia
+left outer join Zeus.Usuario on Energia.user_id = Usuario.id
+left outer join Zeus.Dispositivo on Energia.dispositivo_id = Dispositivo.id
+group by Usuario.nome_usuario, Dispositivo.descricao
+
+
+
+
+
+%sql
+-- teste // 
+select SUBSTR(created_time,5,3) as Mes, Usuario.nome_usuario, sum(Energia.potencia) from Zeus.Energia
+left outer join Zeus.Usuario on Energia.user_id = Usuario.id
+left outer join Zeus.Dispositivo on Energia.dispositivo_id = Dispositivo.id
+Group by SUBSTR(created_time,5,3), Usuario.nome_usuario
+Order by Mes desc
+
+
+
+
+%sql
+-- teste // 
+select SUBSTR(created_time,5,3) as Mes, Usuario.nome_usuario, (((avg(Energia.potencia)*8)/1000)*0.6) as Gastos from Zeus.Energia
+left outer join Zeus.Usuario on Energia.user_id = Usuario.id
+left outer join Zeus.Dispositivo on Energia.dispositivo_id = Dispositivo.id
+Group by SUBSTR(created_time,5,3), Usuario.nome_usuario
+Order by Mes desc
+
+
+
+%sql
+select Usuario.nome_usuario, sum(Energia.potencia) as Potencia, Cidade.latitude, Cidade.longitude from Zeus.Energia
+left outer join Zeus.Usuario on Energia.user_id = Usuario.id
+left outer join Zeus.Dispositivo on Energia.dispositivo_id = Dispositivo.id
+left outer join Zeus.Cidade on Dispositivo.id_cidade = Cidade.id
+Group by Usuario.nome_usuario, Cidade.latitude, Cidade.longitude
+
+
+
+%spark
+
+val sqlContext = new org.apache.spark.sql.SQLContext(sc)
+val energia_df = sqlContext.sql("SELECT * FROM Zeus.Energia")
+
+energia_df.printSchema()
+//retail_df.show( 5 )
