@@ -1,0 +1,96 @@
+
+--Consumo de Energia por Dia
+
+%sql
+select data, nome_usuario, nome_dispositivo, avg(potencia_gasta) as potencia_gasta, avg(mintemp) as mintemp, avg(maxtemp) as maxtemp, avg(avgtemp) as avgtemp, avg(totalprecip_mm) as totalprecip_mm 
+    from (
+        select Clima.datatemp as data, Usuario.nome_usuario, Dispositivo.nome as nome_dispositivo, round(sum(Energia.potencia),2) as potencia_gasta, avg(Clima.mintemp) as mintemp, avg(Clima.maxtemp) as maxtemp, avg(Clima.avgtemp) as avgtemp, avg(Clima.totalprecip_mm) as totalprecip_mm 
+        from Zeus.Energia
+        left outer join Zeus.Usuario on Energia.user_id = Usuario.id
+        left outer join Zeus.Dispositivo on Energia.dispositivo_id = Dispositivo.id
+        left outer join Zeus.Cidade on Dispositivo.id_cidade = Cidade.id
+        left outer join Zeus.Clima on Cidade.id = Clima.id_cidade
+        Group by Clima.datatemp, Usuario.nome_usuario, Dispositivo.nome
+        Order by Clima.datatemp, Usuario.nome_usuario  desc
+        ) as energia
+Group by data, nome_usuario, nome_dispositivo
+Order by data asc
+
+--Geoposição dos Dispositivos
+%angular
+
+<!-- place this in an %angular paragraph -->
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.5/leaflet.css" />
+<div id="map" style="height: 400px; width: 100%"></div>
+
+<script type="text/javascript">
+function initMap() {
+    var map = L.map('map').setView([-23.4294,-46.6481],11);
+
+    L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors',
+        maxZoom: 12,
+        minZoom: 3
+    }).addTo(map);
+
+    var geoMarkers = L.layerGroup().addTo(map);
+    
+   var el = angular.element($('#map').parent('.ng-scope'));
+    angular.element(el).ready(function() {
+        window.locationWatcher = el.scope().compiledScope.$watch('locations', function(newValue, oldValue) {
+            // geoMarkers.clearLayers(); -- if you want to only show new data clear the layer first
+            // console.log("new value: " + newValue);
+            angular.forEach(newValue, function(wind) {
+                try { JSON.parse(wind); } catch(error) { alert(error); }
+                windJSON = JSON.parse(wind)
+                var marker = L.marker([windJSON.loc.lat, windJSON.loc.lon]).bindPopup(windJSON.value).addTo(geoMarkers);
+            });
+        })
+    });
+}
+
+if (window.locationWatcher) {
+    // clear existing watcher otherwise we'll have duplicates
+    window.locationWatcher();
+}
+
+// ensure we only load the script once, seems to cause issues otherwise
+if (window.L) {
+    initMap();
+} else {
+    console.log('Loading Leaflet library');
+    var sc = document.createElement('script');
+    sc.type = 'text/javascript';
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.5/leaflet.js';
+    sc.onload = initMap;
+    sc.onerror = function(err) { alert(err); }
+    document.getElementsByTagName('head')[0].appendChild(sc);
+}
+</script>
+
+--Bind GeoPosicionamento
+%spark
+
+import scala.util.parsing.json.JSONObject
+import org.apache.spark.sql._
+import org.json4s._
+import org.json4s.JsonDSL._
+import org.json4s.jackson.JsonMethods._
+
+val location_df = sqlContext.sql("select Cidade.latitude, Cidade.longitude, Usuario.nome_usuario, sum(Energia.Potencia) as Potencia from Zeus.Energia left outer join Zeus.Usuario on Energia.user_id = Usuario.id left outer join Zeus.Dispositivo on Energia.dispositivo_id = Dispositivo.id left outer join Zeus.Cidade on Dispositivo.id_cidade = Cidade.id where (Usuario.id == 01 and Cidade.id = 01) or (Usuario.id == 02 and Cidade.id = 03) or (Usuario.id == 03 and Cidade.id = 02) group by Usuario.nome_usuario, Cidade.latitude, Cidade.longitude")
+
+location_df.show()
+
+case class Loc(lat: Double, lon: Double)
+case class Wind(value: String, loc: Loc)
+
+case class userLoc(user: String, lat: Double, lon: Double)
+
+val dataPoints = location_df.map{s => Wind(s.getString(2).toString, Loc( -s.getDouble(0), -s.getDouble(1)))}
+val dataPointsJson = dataPoints.toJSON.take(100)
+z.angularBind("locations", dataPointsJson)
+
+
+--
+
