@@ -1,20 +1,25 @@
 
---Consumo de Energia por Dia
+--Consumo Semanal de Energia
 
 %sql
-select data, nome_usuario, nome_dispositivo, avg(potencia_gasta) as potencia_gasta, avg(mintemp) as mintemp, avg(maxtemp) as maxtemp, avg(avgtemp) as avgtemp, avg(totalprecip_mm) as totalprecip_mm 
-    from (
-        select Clima.datatemp as data, Usuario.nome_usuario, Dispositivo.nome as nome_dispositivo, round(sum(Energia.potencia),2) as potencia_gasta, avg(Clima.mintemp) as mintemp, avg(Clima.maxtemp) as maxtemp, avg(Clima.avgtemp) as avgtemp, avg(Clima.totalprecip_mm) as totalprecip_mm 
-        from Zeus.Energia
-        left outer join Zeus.Usuario on Energia.user_id = Usuario.id
-        left outer join Zeus.Dispositivo on Energia.dispositivo_id = Dispositivo.id
-        left outer join Zeus.Cidade on Dispositivo.id_cidade = Cidade.id
-        left outer join Zeus.Clima on Cidade.id = Clima.id_cidade
-        Group by Clima.datatemp, Usuario.nome_usuario, Dispositivo.nome
-        Order by Clima.datatemp, Usuario.nome_usuario  desc
-        ) as energia
-Group by data, nome_usuario, nome_dispositivo
-Order by data asc
+select 
+  CASE 
+    WHEN dia = 'Monday' THEN '1 - Segunda' 
+    WHEN dia = 'Tuesday' THEN '2 - Terça-feira'
+    WHEN dia = 'Wednesday' THEN '3 - Quarta-feira' 
+    WHEN dia = 'Thursday' THEN '4 - Quinta-feira' 
+    WHEN dia = 'Friday' THEN '5 - Sexta-feira'
+    WHEN dia = 'Saturday' THEN '6 - Sábado'
+    WHEN dia = 'Sunday' THEN '7 - Domingo'
+  END AS dia, valor
+from (
+        select from_unixtime(unix_timestamp(created_time, 'EEE MMM d HH:mm:ss Z yyyy'),'EEEE') as dia, round((sum(Energia.potencia/86400000)),2) as valor -- //1 day - 86400000 ms
+        from Zeus.Energia_orc as Energia
+        where Energia.user_id = 1 
+        Group by from_unixtime(unix_timestamp(created_time, 'EEE MMM d HH:mm:ss Z yyyy'),'EEEE')
+     ) as energia 
+Order by dia
+       
 
 --Geoposição dos Dispositivos
 %angular
@@ -68,6 +73,26 @@ if (window.L) {
     document.getElementsByTagName('head')[0].appendChild(sc);
 }
 </script>
+
+
+
+
+
+
+
+--Consumo Mensal
+
+%spark 
+
+val valor_df = sqlContext.sql("select month(from_unixtime(unix_timestamp(created_time, 'EEE MMM d HH:mm:ss Z yyyy'),'yyyy-MM-dd')) as mes, round((sum(Energia.potencia/86400000)),2) as valor from Zeus.Energia_orc as Energia where Energia.user_id = 1 Group by month(from_unixtime(unix_timestamp(created_time, 'EEE MMM d HH:mm:ss Z yyyy'),'yyyy-MM-dd'))").collect.map(s=>s(1))
+
+print(s"""%angular     
+<h2> Valor Gasto no Mês Corrente: R&#36; {{valor_df[0]}}</h2>
+""")
+
+
+
+
 
 --Bind GeoPosicionamento
 %spark

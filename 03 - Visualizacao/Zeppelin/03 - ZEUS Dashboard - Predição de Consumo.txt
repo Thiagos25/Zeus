@@ -1,9 +1,10 @@
 -- Consulta Unificadora
 %sql
-select data, nome_usuario, nome_dispositivo, avg(potencia_gasta) as potencia_gasta, avg(mintemp) as mintemp, avg(maxtemp) as maxtemp, avg(avgtemp) as avgtemp, avg(totalprecip_mm) as totalprecip_mm 
+select data, nome_usuario, nome_dispositivo, avg(valor) as valor, avg(mintemp) as mintemp, avg(maxtemp) as maxtemp, avg(avgtemp) as avgtemp, avg(totalprecip_mm) as totalprecip_mm 
     from (
-        select Clima.datatemp as data, Usuario.nome_usuario, Dispositivo.nome as nome_dispositivo, avg(Energia.potencia) as potencia_gasta, avg(Clima.mintemp) as mintemp, avg(Clima.maxtemp) as maxtemp, avg(Clima.avgtemp) as avgtemp, avg(Clima.totalprecip_mm) as totalprecip_mm 
-        from Zeus.Energia
+        
+        select Clima.datatemp as data, Usuario.nome_usuario, Dispositivo.nome as nome_dispositivo, round((sum(Energia.potencia/86400000)),2) as valor, avg(Clima.mintemp) as mintemp, avg(Clima.maxtemp) as maxtemp, avg(Clima.avgtemp) as avgtemp, avg(Clima.totalprecip_mm) as totalprecip_mm 
+        from Zeus.Energia_orc as Energia
         left outer join Zeus.Usuario on Energia.user_id = Usuario.id
         left outer join Zeus.Dispositivo on Energia.dispositivo_id = Dispositivo.id
         left outer join Zeus.Cidade on Dispositivo.id_cidade = Cidade.id
@@ -12,7 +13,8 @@ select data, nome_usuario, nome_dispositivo, avg(potencia_gasta) as potencia_gas
         Order by Clima.datatemp, Usuario.nome_usuario  desc
         ) as energia
 Group by data, nome_usuario, nome_dispositivo
-Order by potencia_gasta asc
+
+
 
 
 -- Leitura da Tabela Final no Spark
@@ -26,26 +28,26 @@ import org.apache.spark.ml.feature.Binarizer
 import org.apache.spark.sql.Column
 
 val sqlContext = new org.apache.spark.sql.SQLContext(sc)
-val energia_df = sqlContext.sql("select data, nome_usuario, nome_dispositivo, avg(potencia_gasta) as potencia_gasta, avg(mintemp) as mintemp, avg(maxtemp) as maxtemp, avg(avgtemp) as avgtemp, avg(totalprecip_mm) as totalprecip_mm from (select Clima.datatemp as data, Usuario.nome_usuario, Dispositivo.nome as nome_dispositivo, avg(Energia.potencia) as potencia_gasta, avg(Clima.mintemp) as mintemp, avg(Clima.maxtemp) as maxtemp, avg(Clima.avgtemp) as avgtemp, avg(Clima.totalprecip_mm) as totalprecip_mm from Zeus.Energia left outer join Zeus.Usuario on Energia.user_id = Usuario.id left outer join Zeus.Dispositivo on Energia.dispositivo_id = Dispositivo.id left outer join Zeus.Cidade on Dispositivo.id_cidade = Cidade.id left outer join Zeus.Clima on Cidade.id = Clima.id_cidade Group by Clima.datatemp, Usuario.nome_usuario, Dispositivo.nome Order by Clima.datatemp, Usuario.nome_usuario  desc) as energia Group by data, nome_usuario, nome_dispositivo")
+
+val energia_df = sqlContext.sql("select data, nome_usuario, nome_dispositivo, avg(valor) as valor, avg(mintemp) as mintemp, avg(maxtemp) as maxtemp, avg(avgtemp) as avgtemp, avg(totalprecip_mm) as totalprecip_mm from (select Clima.datatemp as data, Usuario.nome_usuario, Dispositivo.nome as nome_dispositivo, round((sum(Energia.potencia/86400000)),2) as valor, avg(Clima.mintemp) as mintemp, avg(Clima.maxtemp) as maxtemp, avg(Clima.avgtemp) as avgtemp, avg(Clima.totalprecip_mm) as totalprecip_mm from Zeus.Energia_orc as Energia left outer join Zeus.Usuario on Energia.user_id = Usuario.id left outer join Zeus.Dispositivo on Energia.dispositivo_id = Dispositivo.id left outer join Zeus.Cidade on Dispositivo.id_cidade = Cidade.id left outer join Zeus.Clima on Cidade.id = Clima.id_cidade Group by Clima.datatemp, Usuario.nome_usuario, Dispositivo.nome Order by Clima.datatemp, Usuario.nome_usuario  desc) as energia Group by data, nome_usuario, nome_dispositivo")
 
 energia_df.show( 5 )
-//energia_df.printSchema()
-//retail_df.show( 5 )
+
 
 
 -- Criação da Regressão Logística e atribuição dos Parâmetros
 %spark
 
-val Array(training, testing) = energia_df.randomSplit(Array(0.5, 0.5))
+val Array(training, testing) = energia_df.randomSplit(Array(0.6, 0.4))
 
 //Criação de featureSet
 import org.apache.spark.ml.feature.VectorAssembler
 val assembler = new VectorAssembler()
-  .setInputCols(Array("potencia_gasta", "mintemp", "maxtemp", "avgtemp", "totalprecip_mm"))
+  .setInputCols(Array("valor", "mintemp", "maxtemp", "avgtemp", "totalprecip_mm"))
   .setOutputCol("featureSet")
 
 //Setar a Base Binária Incial do Binary para a Potencia Gasta
-val binaryClassifier = new Binarizer().setInputCol("potencia_gasta").setOutputCol("binaryLabel").setThreshold(75.0)
+val binaryClassifier = new Binarizer().setInputCol("valor").setOutputCol("binaryLabel").setThreshold(75.0)
 
 //Criação da Regressão Logística e atribuição dos Parametros
 val lr = new LogisticRegression().setMaxIter(200).setRegParam(0.3).setElasticNetParam(0.7).setLabelCol("binaryLabel").setFeaturesCol("featureSet")
@@ -63,9 +65,12 @@ val prediction = model.transform(testing)
 //
 
 
+
 -- Predição para o Proximo Dia de Consumo
 %spark
-prediction.groupBy("nome_usuario").agg(max("potencia_gasta")).show
+prediction.groupBy("nome_usuario").agg(avg("valor")).show
+
+
 
 -- Análise de Predições e Verificação de Acurácia
 %spark

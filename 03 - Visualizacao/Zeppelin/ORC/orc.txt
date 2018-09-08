@@ -1,0 +1,4 @@
+CREATE TABLE zeus.energia_orc
+STORED AS ORC TBLPROPERTIES('ORC.COMPRESS'='SNAPPY') as
+select * from zeus.energia 
+where month(from_unixtime(unix_timestamp(created_time, 'EEE MMM d HH:mm:ss Z yyyy'),'yyyy-MM-dd')) = 8;
