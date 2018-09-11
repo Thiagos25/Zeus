@@ -36,12 +36,171 @@ order by Energia.created_time limit 100
 
 
 
-BB
-BRASBRRJSBO
-
-BR7600000000017000000271993C1
-
-
 {"timestamp":${now():toNumber()},"created_time":"${now():format("yyyy/MM/dd HH:mm:ss.SSS", "GMT")}","user_id":"${user_id}","device":"${device}","corrente":"${corrente}","potencia":"${potencia}"}
 
 
+sudo netstat -tlpn | grep 9090
+
+
+
+
+
+http://api.apixu.com/v1/forecast.json?q=${cidade}&key=1151ea2273ab498484b13820182807&dt=${now():plus(86400):format("yyyy-MM-dd", "UTC")}
+
+
+http://api.apixu.com/v1/forecast.json?q=${cidade}&key=1151ea2273ab498484b13820182807&dt=2018-08-15
+
+
+from_unixtime(unix_timestamp(created_time, 'EEE MMM d HH:mm:ss Z yyyy'),'yyyy-MM-dd') 
+select weekofyear(from_unixtime(unix_timestamp('Thu Dec 02 15:55:08 IST 2015', 'EEE MMM d HH:mm:ss Z yyyy'),'yyyy-MM-dd')) from sample_07 limit 1;
+
+
+
+
+--------------------------
+//Query Final
+%sql
+
+select data, nome_usuario, nome_dispositivo, avg(potencia_gasta) as potencia_gasta, avg(mintemp) as mintemp, avg(maxtemp) as maxtemp, avg(avgtemp) as avgtemp, avg(totalprecip_mm) as totalprecip_mm 
+    from (
+        select Clima.datatemp as data, Usuario.nome_usuario, Dispositivo.nome as nome_dispositivo, avg(Energia.potencia) as potencia_gasta, avg(Clima.mintemp) as mintemp, avg(Clima.maxtemp) as maxtemp, avg(Clima.avgtemp) as avgtemp, avg(Clima.totalprecip_mm) as totalprecip_mm 
+        from Zeus.Energia
+        left outer join Zeus.Usuario on Energia.user_id = Usuario.id
+        left outer join Zeus.Dispositivo on Energia.dispositivo_id = Dispositivo.id
+        left outer join Zeus.Cidade on Dispositivo.id_cidade = Cidade.id
+        left outer join Zeus.Clima on Cidade.id = Clima.id_cidade
+        Group by Clima.datatemp, Usuario.nome_usuario, Dispositivo.nome
+        Order by Clima.datatemp, Usuario.nome_usuario  desc
+        ) as energia
+Group by data, nome_usuario, nome_dispositiv
+
+--------------------------
+
+//Query Final dentro do spark
+select data, nome_usuario, nome_dispositivo, avg(potencia_gasta) as potencia_gasta, avg(mintemp) as mintemp, avg(maxtemp) as maxtemp, avg(avgtemp) as avgtemp, avg(totalprecip_mm) as totalprecip_mm from (select Clima.datatemp as data, Usuario.nome_usuario, Dispositivo.nome as nome_dispositivo, avg(Energia.potencia) as potencia_gasta, avg(Clima.mintemp) as mintemp, avg(Clima.maxtemp) as maxtemp, avg(Clima.avgtemp) as avgtemp, avg(Clima.totalprecip_mm) as totalprecip_mm from Zeus.Energia left outer join Zeus.Usuario on Energia.user_id = Usuario.id left outer join Zeus.Dispositivo on Energia.dispositivo_id = Dispositivo.id left outer join Zeus.Cidade on Dispositivo.id_cidade = Cidade.id left outer join Zeus.Clima on Cidade.id = Clima.id_cidade Group by Clima.datatemp, Usuario.nome_usuario, Dispositivo.nome Order by Clima.datatemp, Usuario.nome_usuario  desc) as energia Group by data, nome_usuario, nome_dispositivo
+
+--------------------------
+%sql
+
+select from_unixtime(unix_timestamp(created_time, 'EEE MMM d HH:mm:ss Z yyyy'),'yyyy-MM-dd') as data , count(1), dispositivo_id from Zeus.Energia 
+where user_id = 2  and dispositivo_id = 1
+group by data, dispositivo_id
+
+--------------------------
+%sql
+-- teste // 
+
+%sql
+select data, nome_usuario, nome_dispositivo, avg(potencia_gasta) as potencia_gasta, avg(mintemp) as mintemp, avg(maxtemp) as maxtemp, avg(avgtemp) as avgtemp, avg(totalprecip_mm) as totalprecip_mm 
+    from (
+        select from_unixtime(unix_timestamp(created_time, 'EEE MMM d HH:mm:ss Z yyyy'),'yyyy-MM-dd  HH') as data, Usuario.nome_usuario, Dispositivo.nome as nome_dispositivo, round(sum(Energia.potencia),2) as potencia_gasta, avg(Clima.mintemp) as mintemp, avg(Clima.maxtemp) as maxtemp, avg(Clima.avgtemp) as avgtemp, avg(Clima.totalprecip_mm) as totalprecip_mm 
+        from Zeus.Energia
+        left outer join Zeus.Usuario on Energia.user_id = Usuario.id and Usuario.id = 1
+        left outer join Zeus.Dispositivo on Energia.dispositivo_id = Dispositivo.id
+        left outer join Zeus.Cidade on Dispositivo.id_cidade = Cidade.id
+        left outer join Zeus.Clima on Cidade.id = Clima.id_cidade
+        Group by from_unixtime(unix_timestamp(created_time, 'EEE MMM d HH:mm:ss Z yyyy'),'yyyy-MM-dd  HH'), Usuario.nome_usuario, Dispositivo.nome
+        Order by from_unixtime(unix_timestamp(created_time, 'EEE MMM d HH:mm:ss Z yyyy'),'yyyy-MM-dd  HH') , Usuario.nome_usuario  desc
+        ) as energia
+Group by data, nome_usuario, nome_dispositivo
+Order by data asc
+
+
+
+
+
+
+
+
+
+
+%sql
+select 
+    CASE 
+        WHEN dia = 'Monday' THEN '1 - Segunda' 
+        WHEN dia = 'Tuesday' THEN '2 - Terça-feira'
+        WHEN dia = 'Wednesday' THEN '3 - Quarta-feira' 
+        WHEN dia = 'Thursday' THEN '4 - Quinta-feira' 
+        WHEN dia = 'Friday' THEN '5 - Sexta-feira'
+        WHEN dia = 'Saturday' THEN '6 - Sábado'
+        WHEN dia = 'Sunday' THEN '7 - Domingo'
+      END AS dia, nome_usuario, nome_dispositivo, sum(valor) as valor, avg(mintemp) as mintemp, avg(maxtemp) as maxtemp, avg(avgtemp) as avgtemp, avg(totalprecip_mm) as totalprecip_mm 
+    from (
+        select from_unixtime(Energia.id ,'EEEE') as dia, Usuario.nome_usuario, Dispositivo.nome as nome_dispositivo, round(sum(Energia.potencia/864000000),2) as valor, avg(Clima.mintemp) as mintemp, avg(Clima.maxtemp) as maxtemp, avg(Clima.avgtemp) as avgtemp, avg(Clima.totalprecip_mm) as totalprecip_mm 
+        from Zeus.Energia_orc as Energia
+        left outer join Zeus.Usuario on Energia.user_id = Usuario.id and Energia.user_id = 1 
+        left outer join Zeus.Dispositivo on Energia.dispositivo_id = Dispositivo.id
+        left outer join Zeus.Cidade on Dispositivo.id_cidade = Cidade.id
+        left outer join Zeus.Clima on Cidade.id = Clima.id_cidade
+        Group by from_unixtime(Energia.id ,'EEEE'), Usuario.nome_usuario, Dispositivo.nome
+        ) as energia 
+        where nome_usuario is not null
+Group by dia, nome_usuario, nome_dispositivo
+Order by dia asc
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+%sql
+select 
+  CASE 
+    WHEN dia = 'Monday' THEN '1 - Segunda' 
+    WHEN dia = 'Tuesday' THEN '2 - Terça-feira'
+    WHEN dia = 'Wednesday' THEN '3 - Quarta-feira' 
+    WHEN dia = 'Thursday' THEN '4 - Quinta-feira' 
+    WHEN dia = 'Friday' THEN '5 - Sexta-feira'
+    WHEN dia = 'Saturday' THEN '6 - Sábado'
+    WHEN dia = 'Sunday' THEN '7 - Domingo'
+  END AS dia, valor, (valor-8) as rate
+from (
+        select from_unixtime(Energia.id ,'EEEE') as dia, round((sum(Energia.potencia/604800000)*0.2),2) as valor
+        from Zeus.Energia_orc as Energia
+        left outer join Zeus.Usuario on Energia.user_id = Usuario.id and Energia.user_id = 1 
+        left outer join Zeus.Dispositivo on Energia.dispositivo_id = Dispositivo.id
+        left outer join Zeus.Cidade on Dispositivo.id_cidade = Cidade.id
+        left outer join Zeus.Clima on Cidade.id = Clima.id_cidade
+        Group by from_unixtime(Energia.id ,'EEEE')
+     ) as energia 
+Order by dia
+
+
+
+
+
+
+
+select 
+  CASE 
+    WHEN dia = 'Monday' THEN '1 - Segunda' 
+    WHEN dia = 'Tuesday' THEN '2 - Terça-feira'
+    WHEN dia = 'Wednesday' THEN '3 - Quarta-feira' 
+    WHEN dia = 'Thursday' THEN '4 - Quinta-feira' 
+    WHEN dia = 'Friday' THEN '5 - Sexta-feira'
+    WHEN dia = 'Saturday' THEN '6 - Sábado'
+    WHEN dia = 'Sunday' THEN '7 - Domingo'
+  END AS dia, valor
+from (
+        select from_unixtime(Energia.id ,'EEEE') as dia, round((sum(Energia.potencia/604800000)*0.2),2) as valor -- //1 week	604800000 ms
+        from Zeus.Energia_orc as Energia
+        left outer join Zeus.Usuario on Energia.user_id = Usuario.id and Energia.user_id = 1 
+        left outer join Zeus.Dispositivo on Energia.dispositivo_id = Dispositivo.id
+        left outer join Zeus.Cidade on Dispositivo.id_cidade = Cidade.id
+        left outer join Zeus.Clima on Cidade.id = Clima.id_cidade
+        Group by from_unixtime(Energia.id ,'EEEE')
+     ) as energia 
+Order by dia
+       
+       
+       
+       
+       
+       
+       
+       
